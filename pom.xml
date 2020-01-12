@@ -30,7 +30,7 @@
         <commons-lang3.version>3.4</commons-lang3.version>
 
         <!-- database -->
-        <sqlite-jdbc.version>3.28.0</sqlite-jdbc.version>
+        <h2.version>1.4.199</h2.version>
 
         <!-- logger -->
         <slf4j-api.version>1.7.5</slf4j-api.version>
@@ -39,7 +39,7 @@
         <maven-surefire-plugin.version>2.20.1</maven-surefire-plugin.version>
         <gmavenplus-plugin.version>1.6</gmavenplus-plugin.version>
         <maven-compiler-plugin.version>2.0.2</maven-compiler-plugin.version>
-        <liquibase-maven-plugin.version>3.0.5</liquibase-maven-plugin.version>
+        <liquibase-maven-plugin.version>3.4.1</liquibase-maven-plugin.version>
     </properties>
 
     <dependencies>
@@ -55,11 +55,11 @@
             <version>${spring.version}</version>
         </dependency>
 
-        <!-- sqlite -->
+        <!-- h2 -->
         <dependency>
-            <groupId>org.xerial</groupId>
-            <artifactId>sqlite-jdbc</artifactId>
-            <version>${sqlite-jdbc.version}</version>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <version>${h2.version}</version>
         </dependency>
 
         <!--lombok-->
@@ -143,6 +143,13 @@
             <version>${hamcrest-core.version}</version>
             <scope>test</scope>
         </dependency>
+
+        <!--  Only bundled with java 1.6+ -->
+        <dependency>
+            <groupId>javax.annotation</groupId>
+            <artifactId>jsr250-api</artifactId>
+            <version>1.0</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -186,11 +193,8 @@
                 <artifactId>liquibase-maven-plugin</artifactId>
                 <version>${liquibase-maven-plugin.version}</version>
                 <configuration>
-                    <changeLogFile>src/main/resources/org/scripts/changeLogFile.xml</changeLogFile>
-                    <driver>org.sqlite.JDBC</driver>
-                    <url>jdbc:sqlite:db/db_app.db</url>
-<!--                    <username>liquibaseTest</username>-->
-<!--                    <password>pass</password>-->
+                    <propertyFile>src/main/resources/liquibase.properties</propertyFile>
+                    <promptOnNonLocalDatabase>false</promptOnNonLocalDatabase>
                 </configuration>
                 <executions>
                     <execution>

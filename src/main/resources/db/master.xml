@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog dbchangelog-3.8.xsd">
+
+    <changeSet author="alex" id="1" runAlways="true" runOnChange="true">
+        <preConditions onFail="MARK_RAN" onSqlOutput="IGNORE">
+            <not>
+                <tableExists tableName="NEW_USER_TABLE"/>
+            </not>
+        </preConditions>
+        <comment>Comments should go after preCondition</comment>
+        <createTable tableName="NEW_USER_TABLE">
+            <column name="id" type="INTEGER">
+                <constraints primaryKey="true"/>
+            </column>
+            <column name="name" type="VARCHAR(20)"/>
+        </createTable>
+        <rollback>
+            <dropTable tableName="NEW_USER_TABLE"/>
+        </rollback>
+    </changeSet>
+
+    <changeSet author="alex" id="2" runAlways="true" runOnChange="true">
+        <preConditions onFail="MARK_RAN" onError="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT NVL(MAX(id),0) FROM NEW_USER_TABLE WHERE NAME = 'name' AND ID = '1';
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="NEW_USER_TABLE">
+            <column name="id" value="1"/>
+            <column name="name" value="name"/>
+        </insert>
+    </changeSet>
+</databaseChangeLog>

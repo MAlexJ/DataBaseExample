@@ -1,10 +1,10 @@
 package com.malex.repository;
 
 import com.malex.dto.BuilderDTO;
+import com.malex.enums.SqlStatement;
 
 public interface DataBaseRepository {
 
-    BuilderDTO executeSelect(String query);
+    BuilderDTO executeQuery(String query, SqlStatement sql);
 
-    BuilderDTO executeUpdate(String query);
 }

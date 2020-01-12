@@ -33,8 +33,10 @@ public class DataSourceConfig {
     @Bean(name = "dataSource")
     public DataSource getDataSource() {
         SingleConnectionDataSource ds = new SingleConnectionDataSource();
-        ds.setDriverClassName(reader.getProperty("app.driver.class.name"));
-        ds.setUrl(reader.getProperty("app.url.database"));
+        ds.setDriverClassName(reader.getProperty("db.driver"));
+        ds.setUrl(reader.getProperty("db.url"));
+        ds.setUsername(reader.getProperty("db.username"));
+        ds.setPassword(reader.getProperty("db.password"));
         return ds;
     }
 }

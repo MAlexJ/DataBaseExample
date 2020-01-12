@@ -1,12 +1,11 @@
 package com.malex.repository.impl;
 
 import com.malex.dto.BuilderDTO;
+import com.malex.enums.SqlStatement;
 import com.malex.exception.AppException;
+import com.malex.model.ResultMetaData;
 import com.malex.repository.DataBaseRepository;
-import lombok.AllArgsConstructor;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
+import lombok.extern.log4j.Log4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 
@@ -15,14 +14,22 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-@Slf4j
-@Repository
+@Log4j
+@Repository("dbRepository")
 public class DataBaseRepositoryImpl implements DataBaseRepository {
 
-    private static final String SUCCESS_MESSAGE = "Success";
+    /**
+     * Error messages
+     */
+    private static final String ERROR_QUERY_MESSAGE = "Error execute query: %s, Message: %s";
+    private static final String SUCCESS_QUERY_MESSAGE = "Success";
+    private static final String PARSING_ERROR_MESSAGE = "Error parsing ResultSet, countNumber: %s, message: %s";
 
     /**
      * DataSource
@@ -34,52 +41,59 @@ public class DataBaseRepositoryImpl implements DataBaseRepository {
         this.dataSource = dataSource;
     }
 
-    private static final String ERROR_QUERY = "Error execute query: %s, Message: %s";
-
     @Override
-    public BuilderDTO executeSelect(String query) {
-        try (Connection connection = dataSource.getConnection();
-             ResultSet resultSet = connection.createStatement().executeQuery(query)) {
-            return getResultFromSelectQuery(resultSet);
+    public BuilderDTO executeQuery(String query, SqlStatement statement) {
+        try (Connection dbConnection = dataSource.getConnection();
+             Statement dbStatement = dbConnection.createStatement()) {
+
+            return isSelectStatement(statement)
+                    ? getResultFromSelectQuery(query, dbStatement)
+                    : executeUpdateQuery(query, dbStatement);
+
         } catch (SQLException ex) {
-            log.error(String.format(ERROR_QUERY, query, ex.getLocalizedMessage()));
-            return BuilderDTO.builder()
-                    .isError(true)
-                    .message(ex.getMessage())
-                    .build();
+            return buildErrorResponse(query, ex);
         }
     }
 
-    @Override
-    public BuilderDTO executeUpdate(String query) {
-        BuilderDTO.BuilderDTOBuilder builder = BuilderDTO.builder().message(SUCCESS_MESSAGE);
-        try (Connection connection = dataSource.getConnection();
-             Statement statement = connection.createStatement()) {
-            boolean resultExecution = statement.execute(query);
-            if (!resultExecution) {
-                log.error(String.format(ERROR_QUERY, query, "Result of execution fail"));
-            }
-        } catch (SQLException ex) {
-            log.error(String.format(ERROR_QUERY, query, ex.getLocalizedMessage()));
-            builder.message(ex.getMessage()).isError(true);
+    private BuilderDTO executeUpdateQuery(String query, Statement statement) throws SQLException {
+        BuilderDTO.BuilderDTOBuilder builder = BuilderDTO.builder().message(SUCCESS_QUERY_MESSAGE);
+        // todo not clear the result! for only test!!!
+        // todo create service!
+        boolean resultExecution = statement.execute(query);
+        if (!resultExecution) {
+            String errMsg = String.format(ERROR_QUERY_MESSAGE, query, "Result of execution fail");
+            log.error(errMsg);
+            builder.message(errMsg);
         }
         return builder.build();
     }
 
-    private BuilderDTO getResultFromSelectQuery(ResultSet resultSet) throws SQLException {
-        // #1 get MetaData from ResultSet
-        ResultSetMetaData metaData = resultSet.getMetaData();
-        LinkedHashSet<ResultMetaData> resultMetaDataSet = IntStream.rangeClosed(1, metaData.getColumnCount())
+    private BuilderDTO getResultFromSelectQuery(String query, Statement statement) {
+        try (ResultSet resultSet = statement.executeQuery(query)) {
+
+            Set<ResultMetaData> resultMetaDataSet = getResultMetaData(resultSet.getMetaData());
+            return BuilderDTO.builder()
+                    .message(SUCCESS_QUERY_MESSAGE)
+                    .columnTypes(getColumnTypes(resultMetaDataSet))
+                    .columnNames(getColumnNames(resultMetaDataSet))
+                    .columnData(getColumnData(resultSet, resultMetaDataSet))
+                    .build();
+
+        } catch (SQLException ex) {
+            return buildErrorResponse(query, ex);
+        }
+    }
+
+    private Set<ResultMetaData> getResultMetaData(ResultSetMetaData metaData) throws SQLException {
+        return IntStream.rangeClosed(1, metaData.getColumnCount())
                 .boxed()
-                .map(countNumber -> getColumnTypeName(countNumber, metaData))
+                .map(columnNumber -> getResultMetaData(columnNumber, metaData))
                 .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
 
-        // #2 get columnNames from MetaData
-        LinkedHashSet<String> columnNameSet = resultMetaDataSet.stream()
-                .map(ResultMetaData::getColumnName)
-                .collect(Collectors.toCollection(LinkedHashSet::new));
-
-        // #3 get data from ResultSet by columnNames
+    // todo remove object, cast to string and >>>> write stream
+    private List<List<Object>> getColumnData(ResultSet resultSet,
+                                             Set<ResultMetaData> resultMetaDataSet) throws SQLException {
         List<List<Object>> resultSetRow = new ArrayList<>();
         while (resultSet.next()) {
             List<Object> rows = new ArrayList<>();
@@ -88,27 +102,46 @@ public class DataBaseRepositoryImpl implements DataBaseRepository {
             }
             resultSetRow.add(rows);
         }
-
-        return BuilderDTO.builder()
-                .resultColumns(columnNameSet)
-                .resultRows(resultSetRow)
-                .build();
+        return resultSetRow;
     }
 
-    private ResultMetaData getColumnTypeName(int countNumber, ResultSetMetaData metaData) {
+    private List<String> getColumnTypes(Set<ResultMetaData> resultMetaDataSet) {
+        return getInfo(resultMetaDataSet, ResultMetaData::getTypeName, Collectors.toCollection(ArrayList::new));
+    }
+
+    private Set<String> getColumnNames(Set<ResultMetaData> resultMetaDataSet) {
+        return getInfo(resultMetaDataSet, ResultMetaData::getColumnName, Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    private <R, A> R getInfo(Set<ResultMetaData> resultMetaDataSet,
+                             Function<ResultMetaData, String> mapper,
+                             Collector<? super String, A, R> collector) {
+        return resultMetaDataSet.stream()
+                .map(mapper)
+                .collect(collector);
+    }
+
+    private ResultMetaData getResultMetaData(int countNumber, ResultSetMetaData metaData) {
         try {
-            return new ResultMetaData(countNumber, metaData.getColumnName(countNumber));
+            return ResultMetaData.builder()
+                    .id(countNumber)
+                    .columnName(metaData.getColumnName(countNumber))
+                    .typeName(metaData.getColumnTypeName(countNumber))
+                    .build();
         } catch (SQLException ex) {
-            log.error("Error parsing ResultSetMetaData from ResultSet.", ex);
-            throw new AppException(ex.getMessage(), "countNumber: ", countNumber);
+            throw new AppException(String.format(PARSING_ERROR_MESSAGE, countNumber, ex.getMessage()));
         }
     }
 
-    @Getter
-    @AllArgsConstructor
-    @EqualsAndHashCode
-    private static class ResultMetaData {
-        private int id;
-        private String columnName;
+    private boolean isSelectStatement(SqlStatement statement) {
+        return SqlStatement.SELECT == statement;
+    }
+
+    private BuilderDTO buildErrorResponse(String incorrectQuery, Exception ex) {
+        log.error(String.format(ERROR_QUERY_MESSAGE, incorrectQuery, ex.getMessage()));
+        return BuilderDTO.builder()
+                .isError(true)
+                .message(ex.getMessage())
+                .build();
     }
 }
