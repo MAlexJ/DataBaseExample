@@ -17,8 +17,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collector;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import static java.util.stream.Collectors.toCollection;
 
 @Log4j
 @Repository("dbRepository")
@@ -45,14 +46,16 @@ public class DataBaseRepositoryImpl implements DataBaseRepository {
     public BuilderDTO executeQuery(String query, SqlStatement statement) {
         try (Connection dbConnection = dataSource.getConnection();
              Statement dbStatement = dbConnection.createStatement()) {
-
             return isSelectStatement(statement)
                     ? getResultFromSelectQuery(query, dbStatement)
                     : executeUpdateQuery(query, dbStatement);
-
         } catch (SQLException ex) {
             return buildErrorResponse(query, ex);
         }
+    }
+
+    private boolean isSelectStatement(SqlStatement statement) {
+        return SqlStatement.SELECT == statement;
     }
 
     private BuilderDTO executeUpdateQuery(String query, Statement statement) throws SQLException {
@@ -70,7 +73,6 @@ public class DataBaseRepositoryImpl implements DataBaseRepository {
 
     private BuilderDTO getResultFromSelectQuery(String query, Statement statement) {
         try (ResultSet resultSet = statement.executeQuery(query)) {
-
             Set<ResultMetaData> resultMetaDataSet = getResultMetaData(resultSet.getMetaData());
             return BuilderDTO.builder()
                     .message(SUCCESS_QUERY_MESSAGE)
@@ -78,7 +80,6 @@ public class DataBaseRepositoryImpl implements DataBaseRepository {
                     .columnNames(getColumnNames(resultMetaDataSet))
                     .columnData(getColumnData(resultSet, resultMetaDataSet))
                     .build();
-
         } catch (SQLException ex) {
             return buildErrorResponse(query, ex);
         }
@@ -88,17 +89,18 @@ public class DataBaseRepositoryImpl implements DataBaseRepository {
         return IntStream.rangeClosed(1, metaData.getColumnCount())
                 .boxed()
                 .map(columnNumber -> getResultMetaData(columnNumber, metaData))
-                .collect(Collectors.toCollection(LinkedHashSet::new));
+                .collect(toCollection(LinkedHashSet::new));
     }
 
-    // todo remove object, cast to string and >>>> write stream
-    private List<List<Object>> getColumnData(ResultSet resultSet,
+
+    private List<List<String>> getColumnData(ResultSet resultSet,
                                              Set<ResultMetaData> resultMetaDataSet) throws SQLException {
-        List<List<Object>> resultSetRow = new ArrayList<>();
+        List<List<String>> resultSetRow = new ArrayList<>();
         while (resultSet.next()) {
-            List<Object> rows = new ArrayList<>();
+            List<String> rows = new ArrayList<>();
             for (ResultMetaData resultMetaData : resultMetaDataSet) {
-                rows.add(resultSet.getObject(resultMetaData.getId()));
+                Object obj = resultSet.getObject(resultMetaData.getId());
+                rows.add(String.valueOf(obj));
             }
             resultSetRow.add(rows);
         }
@@ -106,11 +108,11 @@ public class DataBaseRepositoryImpl implements DataBaseRepository {
     }
 
     private List<String> getColumnTypes(Set<ResultMetaData> resultMetaDataSet) {
-        return getInfo(resultMetaDataSet, ResultMetaData::getTypeName, Collectors.toCollection(ArrayList::new));
+        return getInfo(resultMetaDataSet, ResultMetaData::getTypeName, toCollection(ArrayList::new));
     }
 
     private Set<String> getColumnNames(Set<ResultMetaData> resultMetaDataSet) {
-        return getInfo(resultMetaDataSet, ResultMetaData::getColumnName, Collectors.toCollection(LinkedHashSet::new));
+        return getInfo(resultMetaDataSet, ResultMetaData::getColumnName, toCollection(LinkedHashSet::new));
     }
 
     private <R, A> R getInfo(Set<ResultMetaData> resultMetaDataSet,
@@ -131,10 +133,6 @@ public class DataBaseRepositoryImpl implements DataBaseRepository {
         } catch (SQLException ex) {
             throw new AppException(String.format(PARSING_ERROR_MESSAGE, countNumber, ex.getMessage()));
         }
-    }
-
-    private boolean isSelectStatement(SqlStatement statement) {
-        return SqlStatement.SELECT == statement;
     }
 
     private BuilderDTO buildErrorResponse(String incorrectQuery, Exception ex) {

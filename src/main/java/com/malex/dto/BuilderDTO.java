@@ -18,5 +18,5 @@ public class BuilderDTO {
     // RowSet
     private Set<String> columnNames;
     private List<String> columnTypes;
-    private List<List<Object>> columnData;
+    private List<List<String>> columnData;
 }

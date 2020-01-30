@@ -26,6 +26,8 @@ public class MainApp {
 
         AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext(BASE_SCAN_PACKAGE);
         context.register(DataSourceConfig.class);
+
+        // read beans
         readAllDefinitionNames(context);
 
         DataBaseService service = context.getBean(DataBaseService.class, "dataBaseService");
