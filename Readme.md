@@ -1,4 +1,3 @@
-Liquibase:
-
-mvn liquibase:update
-mvn liquibase:rollback -Dliquibase.rollbackCount=1
+**Liquibase cmd** <br>
+1. mvn liquibase:update 
+2. mvn liquibase:rollback -Dliquibase.rollbackCount=1 
