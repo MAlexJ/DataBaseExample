@@ -19,7 +19,7 @@
         <spring.version>5.2.3.RELEASE</spring.version>
 
         <!-- testing -->
-        <junit.version>4.12</junit.version>
+        <junit.version>4.13.1</junit.version>
 
         <!-- additional libraries -->
         <lombok.version>1.18.10</lombok.version>
