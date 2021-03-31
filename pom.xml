@@ -23,7 +23,7 @@
 
         <!-- additional libraries -->
         <lombok.version>1.18.10</lombok.version>
-        <guava.version>28.1-jre</guava.version>
+        <guava.version>29.0-jre</guava.version>
         <commons-lang3.version>3.4</commons-lang3.version>
 
         <!-- database -->
